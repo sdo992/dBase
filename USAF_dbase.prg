@@ -1,0 +1,286 @@
+CLEAR ALL
+CLOSE ALL
+CLEAR
+SET PROC TO SRC
+SET STATUS OFF
+SET SCOR OFF
+SET TALK OFF
+SET EXACT OFF
+SET SAFE OFF
+SET DELETED OFF
+USE SRC
+_PEJECT='NONE'
+INDE ON DOC_NO TO DOCNO
+INDE ON NSN TO NSN
+INDE ON WORKCENTER TO WORKCENT
+GO TOP
+RX = .F.
+DO WHILE .NOT. RX
+CLEAR
+STOR SPAC(14) TO DOCNUM
+ANS1 = 00
+ANS2 = .T.
+@0,14 TO 3,60 DOUBLE
+@1,15 SAY " SENTRY REPARABLES CENTER LRU/SRU TRACKER "
+@2,15 SAY "          PLEASE SELECT FUNCTION          "
+@4,01 TO 24,79 DOUBLE
+@7,03 SAY "1. UPDATE LRU/SRU IN DATABASE"
+@9,03 SAY "2. OUTPUT LRU/SRU LOCATION LIST"
+@11,03 SAY "3. BROWSE LRU/SRU LIST"
+@13,03 SAY "4. ADD A NEW LRU/SRU"
+@15,03 SAY "5. OUTPUT SINGLE REPORTS FOR ALL LRUs"
+@17,03 SAY "6. OUTPUT SINGLE LRU REPORT"
+@19,03 SAY "7. INVENTORY CONTROL REPORT"
+@07,44 SAY " 8. SENTREP LRU/SRU REPORT"
+@09,44 SAY " 9. OUTPUT BLANK IN-PROCESSING FORM"
+@11,44 SAY "10. BOX SIGN-IN/OUT"
+@13,44 SAY "11. AF FORM 1297 INPUT"
+@15,44 SAY "12. AF FORM 1297 UPDATE"
+@17,44 SAY "13. OUTPUT LRU/SRU MONTH SERV LIST"
+@19,44 SAY "14. RETURN TO MAIN SYSTEM MENU"
+
+@2,53 GET ANS1 PICTURE "99"
+
+READ
+CLEAR
+DO CASE
+    CASE ANS1 = 1
+        USE SRC
+        CLEAR
+        ACCEPT "ENTER DOCUMENT NUMBER: " TO DOCNUM
+        SET INDE TO DOCNO
+        LOCA FOR DOC_NO = DOCNUM
+        IF .NOT. FOUND()
+            CLEAR
+            @10,10 SAY "THAT ITEM IS NOT FOUND IN THE DATABASE"
+            WAIT
+        ELSE
+            SET FORM TO SRC
+            SET SCOR ON
+            EDIT
+            SET FORM TO
+            SET SCOR OFF
+            PACK
+            REIN
+            ENDI
+            DOCNUM = ' '
+    CASE ANS1 = 2
+        USE SRC
+        SORT TO TEMP ON WORKCENTER,DOC_NO ALL FOR DATE_OUT = ' '
+        USE TEMP.DBF
+        CLEAR
+        @12,10 SAY "ENSURE PRINTER PITCH IS SET TO 15 OR HIGHER BEFORE CONTINUING"
+        WAIT
+        REPORT FORM SRCALL FOR SIGNED_OUT = 0 NOEJ TO PRIN
+        CLEAR
+        ZAP
+    CASE ANS1 = 3
+        DO BRDB
+    CASE ANS1 = 4
+        USE SRC
+        SET FORM TO SRC
+        APPEND
+        SET FORM TO
+        REIN
+    CASE ANS1 = 5
+        CLEAR
+        @10,10 SAY "WARNING! THIS WILL OUTPUT ALL LRUs IN A SINGLE ITEM FORMAT!"
+        @11,10 SAY "THIS WILL TIE UP YOUR PRINTER FOR DAYS AND USE ALL YOUR PAPER"
+        @12,10 SAY "IS THIS OKAY WITH YOU? (Y/N)" GET ANS2 PICT 'Y'
+        READ
+        IF ANS2 = .T.
+            SORT ON UNIT,SHELF TO TEMP
+            USE TEMP
+            SET CONS OFF
+            REPO FORM SRCTOTAL FOR SIGNED_OUT = 0 NOEJ TO PRIN
+            EJECT
+            SET CONS ON
+            CLOS DATA
+            ERASE TEMP.DBF
+        ELSE
+            ENDI
+    CASE ANS1 = 6
+        CLEAR
+        ACCEPT "ENTER ITEM DOCUMENT NUMBER: " TO DOCNUM
+        REPO FORM SRCSING NOEJ TO PRIN ALL FOR DOC_NO = DOCNUM
+        DOCNUM = ' '
+    CASE ANS1 = 7
+        CLEAR
+        SORT TO TEMP ON UNIT,SHELF
+        USE TEMP
+        SET CONS OFF
+        REPO FORM SRCLOC NOEJ ALL TO PRIN
+        SET CONS ON
+        CLOS DATA
+        ERASE TEMP.DBF
+    CASE ANS1 = 8
+        SORT TO TEMP ON SENTREPSTA,DOC_NO FOR SENTREPSTA <> 'NONE'
+        SET CONS OFF
+        USE TEMP
+        CLEAR
+        @10,10 SAY "SENT PRINTER PITCH TO 15 BEFORE CONTINUING"
+        WAIT
+        REPO FORM SENTREP NOEJ TO PRIN
+        SET CONS ON
+        CLOS DATA
+        ERASE TEMP.DBF
+    CASE ANS1 = 9
+        CLEAR
+        USE BLANK
+        SET CONS OFF
+        REPO FORM SRCBLANK NOEJ TO PRIN
+        SET CONS ON
+        CLOS DATA
+    CASE ANS1 = 10
+        USE B_SIN
+        SET FORM TO B_SIN
+        APPEND
+        SET FORM TO
+        REIN
+    CASE ANS1 = 11
+        SET DATE TO DMY
+        DO WHILE .NOT. EOF()
+            ON ESCAPE EXIT
+            USE LRUWUC
+            SET FORM TO LRUWUC
+            ACCEPT " ENTER STOCK NUMBER: " TO NASN
+            LOCA FOR NSN = (VAL('&NASN'))
+            STORE NSN TO NSN1
+            STORE SHOP TO SHOP1
+            STORE ISSUE TO ISSUE1
+            STORE QUAN TO QUAN1
+            STORE RSD_CLR TO RSD1
+            STORE COST TO COST1
+            USE ISSUE
+            SET FORM TO ISSUE
+            APPEND BLANK
+            REPLACE NSN WITH NSN1
+            REPLACE SHOP WITH SHOP1
+            REPLACE ISSUE WITH ISSUE1
+            REPLACE QUAN WITH QUAN1
+            REPLACE RSD_CLR WITH RSD1
+            REPLACE COST WITH COST1
+            EDIT
+            PACK
+            REIN
+            SET FORM TO
+        ENDDO
+    CASE ANS1 = 12
+        USE ISSUE
+        CLEAR
+        DO WHILE .NOT. EOF()
+            ON ESCAPE EXIT
+            SET DATE TO DAY
+            ACCEPT "ENTER DOCUMENT NUMBER: " TO DOCNUM
+            LOCA FOR DOC_N = ('&DOCNUM')
+            IF .NOT. FOUND ()
+                CLEAR
+                @10,10 SAY "THAT ITEM IS NOT FOUND IN THE DATABASE"
+                WAIT
+            ELSE
+                SET FORM TO ISSUE
+                SET SCOR ON
+                EDIT
+                SET FORM TO
+                SET SCOR OFF
+                PACK
+                REIN
+                LOOP
+            ENDIF
+        ENDDO
+        SET FORM TO
+        REIN
+    CASE ANS1 = 13
+        CLEAR
+        USE ISSUE
+        SET DATE TO DMY
+        STORE DATE () TO DATE_A
+        STORE DATE () TO DATE_B
+        @10,15 SAY "ENTER FIRST AND LAST DATE OF REPORT"
+        @12,15 SAY "          DAY/MONTH/YEAR           "
+        @14,20 GET DATE_A PICTURE "99/99/99"
+        @14,40 GET DATE_B PICTURE "99/99/99"
+        READ
+        SORT ON NSN FOR STATUS = 'SERV' .AND.RSD_CLR = 'N'.AND.(DATE>=DATE_A.AND.DATE<=DATE_B)
+        USE TEMP3
+        LIST TO PRINT
+    CASE ANS1 = 14
+        RX = .T.
+    CASE ANS1 = 15
+        USE ISSUE
+        CLEAR
+        DO WHILE .NOT. EOF()
+            ON ESCAPE EXIT
+            ACCEPT "ENTER SERIAL NUMBER: " TO SER1
+            LOCA FOR SER_NO = '&SER1'
+            IF .NOT. FOUND ()
+                CLEAR
+                @10,10 SAY "THAT ITEM IS NOT FOUND IN THE DATABASE"
+            ELSE
+                SET FORM TO ISSUE
+                SET SCOR ON
+                EDIT
+                SET FORM TO
+                SET  SCOR OFF
+                PACK
+                REIN
+            LOOP
+            ENDIF
+            SER1 = ' '
+        ENDDO
+        PACK
+        REIN
+    CASE ANS1 = 22
+        DO WHILE .NOT. EOF()
+            CLEAR
+            USE LRUWUC
+            ON ESCAPE EXIT
+            ACCEPT "  ENTER STOCK NUMBER:  " TO NASN2
+            LOCA FOR NSN=(VAL('&NASN2'))
+            STORE NSN TO NSN2
+            STORE SHOP TO SHOP2
+            STORE ISSUE TO ISSUE2
+            STORE QUAN TO QUAN2
+            STORE RSD_CLR TO RSD2
+            STORE COST TO COST2
+            USE LRUWUC
+            SET FORM TO LRUWUC
+            APPEND BLANK
+            SET SCOR ON
+            REPLACE NSN WITH NSN2
+            REPLACE SHOP WITH SHOP2
+            REPLACE ISSUE WITH ISSUE2
+            REPLACE QUAN WITH QUAN2
+            REPLACE RSD_CLR WITH RSD2
+            REPLACE COST WITH COST2
+            EDIT
+            PACK
+            REIN
+            LOOP
+        ENDDO
+        SET SCOR OFF
+        SET FORM TO
+    CASE ANS1 = 25
+        USE B_SIN
+        SORT TO TEMP ON W_CENT,NOUN
+        USE TEMP.DBF
+        CLEAR
+        @12,10 SAY "ENSURE PRINTER PITCH IS SET TO CONDENSED BEFORE CONTINUING"
+        WAIT
+        CLEAR
+        ZAP
+ENDCASE
+ENDDO
+PACK
+QUIT
+
+PROC BRDB
+USE SRC
+INDE ON WORKCENTER TO WORKCENTER
+INDE ON DOC_NO TO DOCNO
+SET INDE TO WORKCENTER,DOCNO
+GO TOP
+SET STAT ON
+BROW
+SET STAT OFF
+RETURN
